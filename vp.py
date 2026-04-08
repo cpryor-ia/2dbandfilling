@@ -2,7 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
+from matplotlib.widgets import Slider, RadioButtons
 
 # ============================================================
 # Parameters
@@ -27,9 +27,10 @@ E_free = qX**2 + qY**2
 # Tight-binding dispersion for square lattice, shifted so minimum is 0
 E_tb_raw = 2.0 - np.cos(qX) - np.cos(qY)
 
-# Scale TB energy so its height is comparable to the free-electron plot
-tb_scale = E_free.max() / E_tb_raw.max()
-E_tb = tb_scale * E_tb_raw
+# Scale TB to match effective mass at k=0: m*_tb = m*_free
+# Free: d²E/dk² = 2, TB: d²E/dk² = a², so scale by 2/a²
+tb_mass_scale = 2.0 / (a * a)
+E_tb = tb_mass_scale * E_tb_raw
 
 # Precompute sorted state orderings for filling
 E_free_flat = E_free.ravel()
@@ -59,6 +60,9 @@ fill_slider = Slider(
     valstep=0.001
 )
 
+radio_ax = fig.add_axes([0.025, 0.4, 0.12, 0.15])
+radio_buttons = RadioButtons(radio_ax, ('Free', 'Tight-binding'))
+
 
 ax.view_init(elev=28, azim=-55)
 
@@ -66,6 +70,7 @@ ax.view_init(elev=28, azim=-55)
 # State
 # ============================================================
 state = {
+    "dispersion_type": "Free",
     "fill_fraction": 0.0,
 }
 
@@ -95,10 +100,16 @@ def draw_scene():
     elev, azim, roll = get_current_view(ax)
     ax.cla()
     
-    E_wire = E_free
-    E_fill = E_free
-    sorted_idx = sorted_indices_free
-    title_main = "2D square lattice: free-electron dispersion"
+    if state["dispersion_type"] == "Free":
+        E_wire = E_free
+        E_fill = E_free
+        sorted_idx = sorted_indices_free
+        title_main = "2D square lattice: free-electron dispersion"
+    else:
+        E_wire = E_tb
+        E_fill = E_tb
+        sorted_idx = sorted_indices_tb
+        title_main = "2D square lattice: tight-binding dispersion"
     
     ax.plot_wireframe(
         KX, KY, E_wire,
@@ -159,7 +170,13 @@ def on_slider_change(val):
     draw_scene()
     fig.canvas.draw_idle()
 
+def on_radio_change(label):
+    state["dispersion_type"] = label
+    draw_scene()
+    fig.canvas.draw_idle()
+
 fill_slider.on_changed(on_slider_change)
+radio_buttons.on_clicked(on_radio_change)
 
 # Initial draw
 draw_scene()

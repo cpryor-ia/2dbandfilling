@@ -66,7 +66,7 @@ def occupied_mask(sorted_indices, shape, fill_fraction):
         occ_flat[sorted_indices[:n_occ]] = True
     return occ_flat.reshape(shape)
 
-def create_band_plot(dispersion_type, fill_fraction, hopping_t):
+def create_band_plot(dispersion_type, fill_fraction, hopping_t, elevation=28, azimuth=-55):
     # Calculate energies
     if dispersion_type == "Free":
         E_wire = E_free
@@ -143,7 +143,7 @@ def create_band_plot(dispersion_type, fill_fraction, hopping_t):
     ax.set_title(f"{title_main}\n{formula}\n{title_extra}", pad=18)
     
     # Set viewing angle
-    ax.view_init(elev=28, azim=-55)
+    ax.view_init(elev=elevation, azim=azimuth)
     
     return fig
 
@@ -187,6 +187,33 @@ def main():
     else:
         hopping_t = 1.0
     
+    # Camera controls
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### Camera View")
+    
+    elevation = st.sidebar.slider(
+        "Elevation",
+        min_value=-90,
+        max_value=90,
+        value=28,
+        step=1,
+        help="Vertical angle of the camera (degrees)"
+    )
+    
+    azimuth = st.sidebar.slider(
+        "Azimuth",
+        min_value=0,
+        max_value=360,
+        value=-55,
+        step=1,
+        help="Horizontal rotation angle of the camera (degrees)"
+    )
+    
+    # Debug display for camera angles
+    st.sidebar.markdown("### Debug Info")
+    st.sidebar.write(f"Elevation: {elevation}°")
+    st.sidebar.write(f"Azimuth: {azimuth}°")
+    
     # Information section
     st.sidebar.markdown("---")
     st.sidebar.markdown("### About")
@@ -205,8 +232,8 @@ def main():
         st.markdown("### 3D Band Structure")
         
         # Create and display the plot
-        fig = create_band_plot(dispersion_type, fill_fraction, hopping_t)
-        st.pyplot(fig, use_container_width=True)
+        fig = create_band_plot(dispersion_type, fill_fraction, hopping_t, elevation, azimuth)
+        st.pyplot(fig, use_container_width=True, key=f"plot_{elevation}_{azimuth}_{fill_fraction}_{dispersion_type}_{hopping_t}")
     
     with col2:
         st.markdown("### Parameters")

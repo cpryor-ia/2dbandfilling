@@ -2,8 +2,9 @@
 
 import streamlit as st
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Set backend before importing pyplot
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_agg import FigureCanvasAgg
 import io
 
 # ============================================================
@@ -67,85 +68,94 @@ def occupied_mask(sorted_indices, shape, fill_fraction):
     return occ_flat.reshape(shape)
 
 def create_band_plot(dispersion_type, fill_fraction, hopping_t, elevation=28, azimuth=-55):
-    # Calculate energies
-    if dispersion_type == "Free":
-        E_wire = E_free
-        E_fill = E_free
-        title_main = "2D square lattice: free-electron dispersion"
-        formula = r"$E(k) = k_x^2 + k_y^2$"
-    else:
-        E_tb = calculate_tight_binding(hopping_t)
-        E_wire = E_tb
-        E_fill = E_tb
-        title_main = "2D square lattice: tight-binding dispersion"
-        formula = r"$E(k) = t[2 - \cos(k_x a) - \cos(k_y a)] \cdot \frac{2}{a^2}$"
-    
-    # Create figure
-    fig = plt.figure(figsize=(12, 8))
-    ax = fig.add_subplot(111, projection="3d")
-    
-    # Main wire mesh
-    ax.plot_wireframe(
-        KX, KY, E_wire,
-        rstride=5,
-        cstride=5,
-        linewidth=0.65,
-        color="0.35",
-        alpha=0.95
-    )
-    
-    # Fill states if needed
-    title_extra = f"filled = {fill_fraction:.3f}"
-    
-    if fill_fraction > 0:
-        # Sort energies for filling
-        E_flat = E_fill.ravel()
-        sorted_indices = np.argsort(E_flat)
+    try:
+        # Calculate energies
+        if dispersion_type == "Free":
+            E_wire = E_free
+            E_fill = E_free
+            title_main = "2D square lattice: free-electron dispersion"
+            formula = r"$E(k) = k_x^2 + k_y^2$"
+        else:
+            E_tb = calculate_tight_binding(hopping_t)
+            E_wire = E_tb
+            E_fill = E_tb
+            title_main = "2D square lattice: tight-binding dispersion"
+            formula = r"$E(k) = t[2 - \cos(k_x a) - \cos(k_y a)] \cdot \frac{2}{a^2}$"
         
-        occ = occupied_mask(sorted_indices, E_fill.shape, fill_fraction)
-        E_occ = np.where(occ, E_fill, np.nan)
+        # Create figure with explicit backend
+        fig = plt.figure(figsize=(12, 8))
+        ax = fig.add_subplot(111, projection="3d")
         
-        if np.any(occ):
-            ax.plot_surface(
-                KX, KY, E_occ,
-                cmap="viridis",
-                vmin=E_fill.min(),
-                vmax=E_fill.max(),
-                linewidth=0,
-                antialiased=False,
-                alpha=0.95
-            )
+        # Main wire mesh
+        ax.plot_wireframe(
+            KX, KY, E_wire,
+            rstride=5,
+            cstride=5,
+            linewidth=0.65,
+            color="0.35",
+            alpha=0.95
+        )
+        
+        # Fill states if needed
+        title_extra = f"filled = {fill_fraction:.3f}"
+        
+        if fill_fraction > 0:
+            # Sort energies for filling
+            E_flat = E_fill.ravel()
+            sorted_indices = np.argsort(E_flat)
             
-            # Add contour projection at bottom
-            ax.contourf(
-                KX, KY, occ.astype(float),
-                zdir="z",
-                offset=-0.8,
-                levels=[0.5, 1.5],
-                colors=["tab:blue"],
-                alpha=0.25
-            )
+            occ = occupied_mask(sorted_indices, E_fill.shape, fill_fraction)
+            E_occ = np.where(occ, E_fill, np.nan)
             
-            EF = E_fill[occ].max()
-            title_extra += rf", $E_F \approx {EF:.2f}$"
-    
-    # Set labels and limits
-    kmax = np.pi / a
-    ax.set_xlim(-kmax, kmax)
-    ax.set_ylim(-kmax, kmax)
-    ax.set_zlim(-0.8, max(E_free.max(), E_fill.max()) * 1.03)
-    
-    ax.set_xlabel(r"$k_x$")
-    ax.set_ylabel(r"$k_y$")
-    ax.set_zlabel(r"$E(k)$")
-    
-    # Set title
-    ax.set_title(f"{title_main}\n{formula}\n{title_extra}", pad=18)
-    
-    # Set viewing angle
-    ax.view_init(elev=elevation, azim=azimuth)
-    
-    return fig
+            if np.any(occ):
+                ax.plot_surface(
+                    KX, KY, E_occ,
+                    cmap="viridis",
+                    vmin=E_fill.min(),
+                    vmax=E_fill.max(),
+                    linewidth=0,
+                    antialiased=False,
+                    alpha=0.95
+                )
+                
+                # Add contour projection at bottom
+                ax.contourf(
+                    KX, KY, occ.astype(float),
+                    zdir="z",
+                    offset=-0.8,
+                    levels=[0.5, 1.5],
+                    colors=["tab:blue"],
+                    alpha=0.25
+                )
+                
+                EF = E_fill[occ].max()
+                title_extra += rf", $E_F \approx {EF:.2f}$"
+        
+        # Set labels and limits
+        kmax = np.pi / a
+        ax.set_xlim(-kmax, kmax)
+        ax.set_ylim(-kmax, kmax)
+        ax.set_zlim(-0.8, max(E_free.max(), E_fill.max()) * 1.03)
+        
+        ax.set_xlabel(r"$k_x$")
+        ax.set_ylabel(r"$k_y$")
+        ax.set_zlabel(r"E(k)$")
+        
+        # Set title
+        ax.set_title(f"{title_main}\n{formula}\n{title_extra}", pad=18)
+        
+        # Set viewing angle
+        ax.view_init(elev=elevation, azim=azimuth)
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"Error creating plot: {str(e)}")
+        # Return a simple figure as fallback
+        fig, ax = plt.subplots(figsize=(12, 8))
+        ax.text(0.5, 0.5, f"Plot generation failed\nError: {str(e)}", 
+                ha='center', va='center', transform=ax.transAxes)
+        return fig
 
 # ============================================================
 # Main App

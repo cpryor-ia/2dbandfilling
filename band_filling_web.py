@@ -72,7 +72,100 @@ def occupied_mask(sorted_indices, shape, fill_fraction):
         occ_flat[sorted_indices[:n_occ]] = True
     return occ_flat.reshape(shape)
 
+def create_band_plot_2d(dispersion_type, fill_fraction, hopping_t):
+    """Create 2D contour plot as fallback for 3D issues"""
+    try:
+        # Clear any existing figures
+        plt.close('all')
+        
+        # Calculate energies
+        if dispersion_type == "Free":
+            E_fill = E_free
+            title_main = "2D square lattice: free-electron dispersion"
+            formula = r"$E(k) = k_x^2 + k_y^2$"
+        else:
+            E_tb = calculate_tight_binding(hopping_t)
+            E_fill = E_tb
+            title_main = "2D square lattice: tight-binding dispersion"
+            formula = r"$E(k) = t[2 - \cos(k_x a) - \cos(k_y a)] \cdot \frac{2}{a^2}$"
+        
+        # Create 2D figure
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6), dpi=100)
+        fig.patch.set_facecolor('white')
+        fig.set_constrained_layout(True)
+        
+        # Left plot: Energy contour
+        levels = 20
+        contour = ax1.contourf(KX, KY, E_fill, levels=levels, cmap='viridis')
+        ax1.contour(KX, KY, E_fill, levels=levels, colors='black', alpha=0.3, linewidths=0.5)
+        fig.colorbar(contour, ax=ax1, label=r'$E(k)$')
+        
+        # Fill states if needed
+        title_extra = f"filled = {fill_fraction:.3f}"
+        
+        if fill_fraction > 0:
+            # Sort energies for filling
+            E_flat = E_fill.ravel()
+            sorted_indices = np.argsort(E_flat)
+            
+            occ = occupied_mask(sorted_indices, E_fill.shape, fill_fraction)
+            
+            if np.any(occ):
+                # Overlay occupied states
+                ax1.contour(KX, KY, occ.astype(float), levels=[0.5], colors='red', linewidths=2)
+                EF = E_fill[occ].max()
+                title_extra += rf", $E_F \approx {EF:.2f}$"
+        
+        # Right plot: Cross-section
+        mid_idx = nk // 2
+        ax2.plot(KX[mid_idx, :], E_fill[mid_idx, :], 'b-', linewidth=2)
+        
+        if fill_fraction > 0:
+            E_flat = E_fill.ravel()
+            sorted_indices = np.argsort(E_flat)
+            occ = occupied_mask(sorted_indices, E_fill.shape, fill_fraction)
+            
+            if np.any(occ):
+                E_cross = E_fill[mid_idx, :]
+                occ_cross = occ[mid_idx, :]
+                ax2.fill_between(KX[mid_idx, :], E_cross, 
+                                where=occ_cross, alpha=0.3, color='blue', label='Occupied')
+                ax2.legend()
+        
+        # Set labels and limits
+        kmax = np.pi / a
+        ax1.set_xlim(-kmax, kmax)
+        ax1.set_ylim(-kmax, kmax)
+        ax1.set_xlabel(r"$k_x$")
+        ax1.set_ylabel(r"$k_y$")
+        ax1.set_title("Energy Contour")
+        
+        ax2.set_xlim(-kmax, kmax)
+        ax2.set_ylim(E_fill.min() * 0.9, E_fill.max() * 1.1)
+        ax2.set_xlabel(r"$k_x$ (at $k_y=0$)")
+        ax2.set_ylabel(r"$E(k)$")
+        ax2.set_title("Energy Cross-section")
+        ax2.grid(True, alpha=0.3)
+        
+        # Set title
+        fig.suptitle(f"{title_main}\n{formula}\n{title_extra}", fontsize=14)
+        
+        # Force draw the figure
+        fig.canvas.draw()
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"Error creating 2D plot: {str(e)}")
+        plt.close('all')
+        fig, ax = plt.subplots(figsize=(12, 8))
+        ax.text(0.5, 0.5, f"2D plot generation failed\nError: {str(e)}", 
+                ha='center', va='center', transform=ax.transAxes)
+        fig.canvas.draw()
+        return fig
+
 def create_band_plot(dispersion_type, fill_fraction, hopping_t, elevation=28, azimuth=-55):
+    """Create 3D plot with fallback to 2D"""
     try:
         # Clear any existing figures
         plt.close('all')
@@ -256,11 +349,18 @@ def main():
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        st.markdown("### 3D Band Structure")
+        st.markdown("### Band Structure Visualization")
         
-        # Create and display the plot
-        fig = create_band_plot(dispersion_type, fill_fraction, hopping_t, elevation, azimuth)
-        st.pyplot(fig, use_container_width=True, key=f"plot_{elevation}_{azimuth}_{fill_fraction}_{dispersion_type}_{hopping_t}")
+        # Try 3D plot first, fallback to 2D if it fails
+        try:
+            fig = create_band_plot(dispersion_type, fill_fraction, hopping_t, elevation, azimuth)
+            plot_type = "3D"
+        except Exception as e:
+            st.warning(f"3D plot failed, using 2D fallback: {str(e)}")
+            fig = create_band_plot_2d(dispersion_type, fill_fraction, hopping_t)
+            plot_type = "2D"
+        
+        st.pyplot(fig, use_container_width=True, key=f"plot_{plot_type}_{fill_fraction}_{dispersion_type}_{hopping_t}")
         
         # Clean up the figure to prevent memory issues
         plt.close(fig)

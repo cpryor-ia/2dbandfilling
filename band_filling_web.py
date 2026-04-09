@@ -360,7 +360,7 @@ def main():
             fig = create_band_plot_2d(dispersion_type, fill_fraction, hopping_t)
             plot_type = "2D"
         
-        st.pyplot(fig, use_container_width=True, key=f"plot_{plot_type}_{fill_fraction}_{dispersion_type}_{hopping_t}")
+        st.pyplot(fig, use_container_width=True)
         
         # Clean up the figure to prevent memory issues
         plt.close(fig)

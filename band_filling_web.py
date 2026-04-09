@@ -3,9 +3,14 @@
 import streamlit as st
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')  # Set backend before importing pyplot
+# Force Agg backend and configure for headless environment
+matplotlib.use('Agg')
+matplotlib.rcParams['figure.max_open_warning'] = 0
+matplotlib.rcParams['agg.path.chunksize'] = 10000
 import matplotlib.pyplot as plt
 import io
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
 
 # ============================================================
 # Page Configuration
@@ -69,6 +74,9 @@ def occupied_mask(sorted_indices, shape, fill_fraction):
 
 def create_band_plot(dispersion_type, fill_fraction, hopping_t, elevation=28, azimuth=-55):
     try:
+        # Clear any existing figures
+        plt.close('all')
+        
         # Calculate energies
         if dispersion_type == "Free":
             E_wire = E_free
@@ -82,9 +90,13 @@ def create_band_plot(dispersion_type, fill_fraction, hopping_t, elevation=28, az
             title_main = "2D square lattice: tight-binding dispersion"
             formula = r"$E(k) = t[2 - \cos(k_x a) - \cos(k_y a)] \cdot \frac{2}{a^2}$"
         
-        # Create figure with explicit backend
-        fig = plt.figure(figsize=(12, 8))
+        # Create figure with explicit backend and DPI
+        fig = plt.figure(figsize=(12, 8), dpi=100)
         ax = fig.add_subplot(111, projection="3d")
+        
+        # Set figure properties to avoid buffer issues
+        fig.patch.set_facecolor('white')
+        fig.set_constrained_layout(True)
         
         # Main wire mesh
         ax.plot_wireframe(
@@ -147,14 +159,19 @@ def create_band_plot(dispersion_type, fill_fraction, hopping_t, elevation=28, az
         # Set viewing angle
         ax.view_init(elev=elevation, azim=azimuth)
         
+        # Force draw the figure to ensure it's rendered
+        fig.canvas.draw()
+        
         return fig
         
     except Exception as e:
         st.error(f"Error creating plot: {str(e)}")
         # Return a simple figure as fallback
+        plt.close('all')
         fig, ax = plt.subplots(figsize=(12, 8))
         ax.text(0.5, 0.5, f"Plot generation failed\nError: {str(e)}", 
                 ha='center', va='center', transform=ax.transAxes)
+        fig.canvas.draw()
         return fig
 
 # ============================================================
@@ -244,6 +261,9 @@ def main():
         # Create and display the plot
         fig = create_band_plot(dispersion_type, fill_fraction, hopping_t, elevation, azimuth)
         st.pyplot(fig, use_container_width=True, key=f"plot_{elevation}_{azimuth}_{fill_fraction}_{dispersion_type}_{hopping_t}")
+        
+        # Clean up the figure to prevent memory issues
+        plt.close(fig)
     
     with col2:
         st.markdown("### Parameters")
